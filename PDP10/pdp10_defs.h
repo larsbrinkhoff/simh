@@ -697,6 +697,8 @@ typedef struct pdp_dib DIB;
    <30:20> =    BR4
 */
 
+#define INT_V_LHDHI     4
+#define INT_V_LHDHO     5
 #define INT_V_RP        6                               /* RH11/RP,RM drives */
 #define INT_V_TU        7                               /* RH11/TM03/TU45 */
 #define INT_V_KMCA      8                               /* KMC11 */
@@ -713,7 +715,6 @@ typedef struct pdp_dib DIB;
 #define INT_V_CR        27                              /* CD20 (CD11) */
 #define INT_V_DUPRX     28                              /* DUP11 */
 #define INT_V_DUPTX     29
-#define INT_V_LHDH      30
 
 #define INT_RP          (1u << INT_V_RP)
 #define INT_TU          (1u << INT_V_TU)
@@ -731,6 +732,8 @@ typedef struct pdp_dib DIB;
 #define INT_CR          (1u << INT_V_CD)
 #define INT_DUPRX       (1u << INT_V_DUPRX)
 #define INT_DUPTX       (1u << INT_V_DUPTX)
+#define INT_LHDHI       (1u << INT_V_LHDHI)
+#define INT_LHDHO       (1u << INT_V_LHDHO)
 
 #define IPL_RP          6                               /* int levels */
 #define IPL_TU          6
