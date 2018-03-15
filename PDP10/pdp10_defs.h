@@ -671,6 +671,8 @@ typedef struct pdp_dib DIB;
 #define IOLN_TU         034
 #define IOBA_LP20       (IO_UBA3 + 0775400)             /* LP20 */
 #define IOLN_LP20       020
+#define IOBA_LHDH       (IO_UBA3 + 0767600)             /* LH/DH */
+#define IOLN_LHDH       0100
 #define IOBA_AUTO       0                               /* Set by Auto Configure */
 
 /* Common Unibus CSR flags */
@@ -711,6 +713,7 @@ typedef struct pdp_dib DIB;
 #define INT_V_CR        27                              /* CD20 (CD11) */
 #define INT_V_DUPRX     28                              /* DUP11 */
 #define INT_V_DUPTX     29
+#define INT_V_LHDH      30
 
 #define INT_RP          (1u << INT_V_RP)
 #define INT_TU          (1u << INT_V_TU)
@@ -731,6 +734,7 @@ typedef struct pdp_dib DIB;
 
 #define IPL_RP          6                               /* int levels */
 #define IPL_TU          6
+#define IPL_LHDH        6
 #define IPL_KMCA        5
 #define IPL_KMCB        5
 #define IPL_DMCRX       5
@@ -754,6 +758,7 @@ typedef struct pdp_dib DIB;
 #define INT_IPL4        0x7FF00000
 
 #define VEC_TU          0224                            /* interrupt vectors */
+#define VEC_LHDH        0250
 #define VEC_RP          0254
 #define VEC_LP20        0754
 #define VEC_AUTO        0                               /* Set by Auto Configure */

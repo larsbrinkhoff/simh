@@ -62,6 +62,7 @@ extern DEVICE xu_dev;
 extern DEVICE dup_dev;
 extern DEVICE kmc_dev;
 extern DEVICE dmc_dev;
+extern DEVICE lhdh_dev;
 extern REG cpu_reg[];
 extern a10 saved_PC;
 
@@ -99,6 +100,7 @@ DEVICE *sim_devices[] = {
     &dup_dev,
     &kmc_dev,
     &dmc_dev,
+    &lhdh_dev,
     NULL
     };
 
