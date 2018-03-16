@@ -73,7 +73,7 @@ t_stat lhdh_reset (DEVICE *dptr);
 
 DIB lhdh_dib = {
     IOBA_LHDH, IOLN_LHDH, &lhdh_rd, &lhdh_wr,
-    1, IVCL (LHDHI), VEC_LHDH, { &lhdh_inta }, IOLN_LHDH,
+    1, IVCL (LHDH), VEC_LHDH, { &lhdh_inta }, IOLN_LHDH,
     };
 
 UNIT lhdh_unit[] = {
@@ -230,22 +230,24 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
 
 int32 lhdh_inta (void)
 {
-  fprintf (stderr, "LHDH: interupt acknowledge, in %o, out %o\r\n",
-           int_req & INT_LHDHI, int_req & INT_LHDHO);
-
-  lhocs &= ~LHIE;
-  return VEC_LHDH + 4;
+  if (lhics & (LHEOM | LHIB)) {
+    fprintf (stderr, "LHDH: interupt acknowledge INPUT\r\n");
+    lhics &= ~LHIE;
+    return VEC_LHDH;
+  } else if (lhowc == 0200000) {
+    fprintf (stderr, "LHDH: interupt acknowledge OUTPUT\r\n");
+    lhocs &= ~LHIE;
+    return VEC_LHDH + 4;
+  } else {
+    fprintf (stderr, "LHDH: interupt acknowledge UNKNOWN\r\n");
+    return -1;
+  }
 }
 
 t_stat lhdh_svc (UNIT *uptr)
 {
   if ((lhics & LHRST) || (lhocs & LHRST))
     lhdh_reset (find_dev_from_unit (uptr));
-
-  if (lhics & LHGO) {
-    fprintf (stderr, "LHDH: input DMA\r\n");
-    lhics &= ~LHGO;
-  }
 
   if (lhocs & LHGO) {
     fprintf (stderr, "LHDH: output DMA, %o %o\r\n", lhoca, lhowc);
@@ -267,7 +269,6 @@ t_stat lhdh_svc (UNIT *uptr)
       lhodb = Read (x, 1);
       fprintf (stderr, "address %o, data %012llo\r\n", x, lhodb);
       
-      //lhodb = (0x2211 << 18) + 0x4433;
       if ((lhowc & 1) == 0)
         lhodb >>= 18;
       imp_send_bits (&imp, lhodb & 0377, 8, 0);
@@ -276,8 +277,10 @@ t_stat lhdh_svc (UNIT *uptr)
       lhoca += 2;
     } else {
       lhocs &= ~LHGO;
-      if (lhocs & LHIE)
-        int_req |= INT_LHDHI;
+      if (lhocs & LHIE) {
+        int_req |= INT_LHDH;
+        fprintf (stderr, "LHDH: request OUTPUT interrupt\r\n");
+      }
     }
   }
 
@@ -306,7 +309,7 @@ int ibits;
 
 t_stat ldhd_receive_bit (int bit, int last)
 {
-  fprintf (stderr, "IMP wants host to receive a bit.\r\n");
+  //fprintf (stderr, "IMP wants host to receive a bit.\r\n");
 
   if ((lhics & LHSE) == 0) {
     fprintf (stderr, "LHDH: don't want it\r\n");
@@ -320,25 +323,52 @@ t_stat ldhd_receive_bit (int bit, int last)
 
   lhidb <<= 1;
   lhidb |= bit & 1;
+  ibits++;
 
-  if (ibits == 16 && (lhics & LHGO)) {
+  if (ibits == 16) {
     if (lhics & LHGO) {
-      fprintf (stderr, "LHDH: write DMA\r\n");
+      int page, x, map;
+
+      fprintf (stderr, "LHDH: write DMA: %012llo -> %o -> \r\n", lhidb, lhica);
+
+      page = lhica >> 11;
+      map = ubmap[1][page];
+      if (page >= UMAP_MEMSIZE || !(map & UMAP_VLD))
+        fprintf (stderr, "LHDH: invalid Unibus mapping\r\n");
+
+      lhidb = ((lhidb & 0377) << 8) + ((lhidb >> 8) & 0377);
+
+      x = (map & 03777) + ((lhica >> 2) & 0777);
+      fprintf (stderr, "address %o\r\n", x);
+      if (lhiwc & 1) {
+        lhidb += (Read (x, 1) & 0777777) << 18;
+        Write (x, lhodb, 1);
+      } else {
+        lhidb = (lhidb << 18) + (Read (x, 1) & 0777777);
+        Write (x, lhodb, 1);
+      }
+
+      lhica += 2;
+      lhiwc++;
       ibits = 0;
       lhidb = 0;
     } else {
       fprintf (stderr, "LHDH: input buffer full\r\n");
       lhics |= LHIB;
-      if (lhics & LHIE)
-        int_req |= INT_LHDHI;
+      if (lhics & LHIE) {
+        fprintf (stderr, "LHDH: request INPUT interrupt\r\n");
+        int_req |= INT_LHDH;
+      }
     }
   };
 
   if (last) {
     lhics |= LHEOM;
     lhics &= ~LHGO;
-    if (lhics & LHIE)
-      int_req |= INT_LHDHI;
+    if (lhics & LHIE) {
+      fprintf (stderr, "LHDH: request INPUT interrupt\r\n");
+      int_req |= INT_LHDH;
+    }
   }
 
   return SCPE_OK;
