@@ -54,11 +54,11 @@
 #define LHWC0  020000  /* Output Word Count is zero */
 
 uint32 lhics; /* Input control and status */
-uint32 lhidb; /* Input data buffer */
+d10    lhidb; /* Input data buffer */
 uint32 lhica; /* Input current address */
 uint32 lhiwc; /* Input word count */
 uint32 lhocs; /* Output control and status */
-uint32 lhodb; /* Output data buffer */
+d10    lhodb; /* Output data buffer */
 uint32 lhoca; /* Output current address */
 uint32 lhowc; /* Output word count */
 
@@ -249,10 +249,28 @@ t_stat lhdh_svc (UNIT *uptr)
     fprintf (stderr, "LHDH: output DMA, %o %o\r\n", lhoca, lhowc);
 
     if (lhowc < 0200000) {
-      int last = (lhowc == 0177776);
-      imp_send_bits (&imp, (lhodb >> 18) & 0177777, 16, 0);
-      imp_send_bits (&imp, lhodb & 0177777, 16, last);
-      lhowc += 2;
+      int last = (lhowc == 0177777);
+      int page, map;
+      int x;
+
+      fprintf (stderr, "%o -> %o -> %o\n\r",
+               lhoca, lhoca >> 2, ubmap[1][lhoca >> 11]);
+
+      page = lhoca >> 11;
+      map = ubmap[1][page];
+      if (page >= UMAP_MEMSIZE || !(map & UMAP_VLD))
+        fprintf (stderr, "LHDH: invalid Unibus mapping\r\n");
+
+      x = (map & 03777) + ((lhoca >> 2) & 0777);
+      lhodb = Read (x, 1);
+      fprintf (stderr, "address %o, data %012llo\r\n", x, lhodb);
+      
+      //lhodb = (0x2211 << 18) + 0x4433;
+      if ((lhowc & 1) == 0)
+        lhodb >>= 18;
+      imp_send_bits (&imp, lhodb & 0377, 8, 0);
+      imp_send_bits (&imp, (lhodb >> 8) & 0377, 8, last);
+      lhowc++;
       lhoca += 2;
     } else {
       lhocs &= ~LHGO;
