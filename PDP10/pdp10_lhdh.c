@@ -110,31 +110,31 @@ t_stat lhdh_rd (int32 *data, int32 PA, int32 access)
     *data = lhics;
     fprintf (stderr, "LHDH: in control = %o\r\n", *data);
     break;
-  case 03767601: /* Input Data Buffer */
+  case 03767602: /* Input Data Buffer */
     *data = lhidb;
     fprintf (stderr, "LHDH: in data = %o\r\n", *data);
     break;
-  case 03767602: /* Input Current Word Address */
+  case 03767604: /* Input Current Word Address */
     *data = 0;
     fprintf (stderr, "LHDH: in addr = %o\r\n", *data);
     break;
-  case 03767603: /* Input Word Count */
+  case 03767606: /* Input Word Count */
     *data = 0;
     fprintf (stderr, "LHDH: in count = %o\r\n", *data);
     break;
-  case 03767604: /* Output Control and Status */
+  case 03767610: /* Output Control and Status */
     *data = lhocs;
     fprintf (stderr, "LHDH: out control = %o\r\n", *data);
     break;
-  case 03767605: /* Output Data Buffer */
+  case 03767612: /* Output Data Buffer */
     *data = 0;
     fprintf (stderr, "LHDH: out data = %o\r\n", *data);
     break;
-  case 03767606: /* Output Current Word Address */
+  case 03767614: /* Output Current Word Address */
     *data = 0;
     fprintf (stderr, "LHDH: out addr = %o\r\n", *data);
     break;
-  case 03767607: /* Output Word Count */
+  case 03767616: /* Output Word Count */
     *data = 0;
     fprintf (stderr, "LHDH: out count = %o\r\n", *data);
     break;
@@ -197,8 +197,6 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
       fprintf (stderr, "out interrupt enable\r\n");
     if (data & LHRDY)
       fprintf (stderr, "out ready\r\n");
-    if (data & LHRDY)
-      fprintf (stderr, "out end of message\r\n");
     if (data & LHBB)
       fprintf (stderr, "out bus back\r\n");
     if (data & LHOBE)
@@ -232,7 +230,11 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
 
 int32 lhdh_inta (void)
 {
-  return VEC_TU;
+  fprintf (stderr, "LHDH: interupt acknowledge, in %o, out %o\r\n",
+           int_req & INT_LHDHI, int_req & INT_LHDHO);
+
+  lhocs &= ~LHIE;
+  return VEC_LHDH + 4;
 }
 
 t_stat lhdh_svc (UNIT *uptr)
@@ -300,18 +302,63 @@ t_stat lhdh_svc (UNIT *uptr)
   return SCPE_OK;
 }
 
+int ibits;
+
+t_stat ldhd_receive_bit (int bit, int last)
+{
+  fprintf (stderr, "IMP wants host to receive a bit.\r\n");
+
+  if ((lhics & LHSE) == 0) {
+    fprintf (stderr, "LHDH: don't want it\r\n");
+    return SCPE_ARG;
+  };
+
+  if (ibits == 16) {
+    fprintf (stderr, "LHDH: buffer full\r\n");
+    return SCPE_ARG;
+  }
+
+  lhidb <<= 1;
+  lhidb |= bit & 1;
+
+  if (ibits == 16 && (lhics & LHGO)) {
+    if (lhics & LHGO) {
+      fprintf (stderr, "LHDH: write DMA\r\n");
+      ibits = 0;
+      lhidb = 0;
+    } else {
+      fprintf (stderr, "LHDH: input buffer full\r\n");
+      lhics |= LHIB;
+      if (lhics & LHIE)
+        int_req |= INT_LHDHI;
+    }
+  };
+
+  if (last) {
+    lhics |= LHEOM;
+    lhics &= ~LHGO;
+    if (lhics & LHIE)
+      int_req |= INT_LHDHI;
+  }
+
+  return SCPE_OK;
+}
+
 t_stat lhdh_reset (DEVICE *dptr)
 {
   fprintf (stderr, "LHDH: reset\r\n");
 
   imp_reset (&imp);
-  //imp.receive_bit = kaimp_receive_bit;
+  imp.receive_bit = ldhd_receive_bit;
+
+  ibits = 0;
+  lhidb = 0;
 
   lhics = LHRDY; /* Ready */
   lhidb = 0;
   lhica = 0;
   lhiwc = 0;
-  lhocs = 0200; /* Ready */
+  lhocs = LHRDY; /* Ready */
   lhodb = 0;
   lhoca = 0;
   lhowc = 0;
