@@ -112,6 +112,7 @@ t_stat lhdh_rd (int32 *data, int32 PA, int32 access)
     break;
   case 03767602: /* Input Data Buffer */
     *data = lhidb;
+    lhics &= ~LHIB;
     fprintf (stderr, "LHDH: in data = %o\r\n", *data);
     break;
   case 03767604: /* Input Current Word Address */
@@ -167,9 +168,12 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
     if (data & LHHR)
       fprintf (stderr, "in host ready\r\n");
 
+    lhics &= ~(LHGO|LHRST|LHA16|LHIE|LHHRC|LHSE|LHHR);
+    lhics |= data & (LHGO|LHRST|LHA16|LHIE|LHHRC|LHSE|LHHR);
     if (data & LHHRC)
       lhics |= LHHR;
-    lhics |= data;
+    if (data & LHGO)
+      lhics &= ~(LHEOM|LHRDY);
     break;
   case 03767602: /* Input Data Buffer */
     fprintf (stderr, "in data: %06o\r\n", data);
@@ -201,10 +205,14 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
       fprintf (stderr, "out bus back\r\n");
     if (data & LHOBE)
       fprintf (stderr, "out empty\r\n");
-    if (data & LHOBE)
+    if (data & LHWC0)
       fprintf (stderr, "out count zero\r\n");
 
-    lhocs |= data;
+    lhocs &= ~(LHGO|LHRST|LHA16|LHIE|LHELB|LHBB);
+    lhocs |= data & (LHGO|LHRST|LHA16|LHIE|LHELB|LHBB);
+    if (data & LHGO)
+      lhocs &= ~(LHOBE|LHRDY);
+
     break;
   case 03767612: /* Output Data Buffer */
     fprintf (stderr, "out data: %06o\r\n", data);
@@ -231,7 +239,8 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
 int32 lhdh_inta (void)
 {
   if (lhics & (LHEOM | LHIB)) {
-    fprintf (stderr, "LHDH: interupt acknowledge INPUT\r\n");
+    fprintf (stderr, "LHDH: interupt acknowledge INPUT, last bit %d, buf full %d, int en %d\r\n",
+             (lhics & LHEOM), (lhics & LHIB), (lhics & LHIE));
     lhics &= ~LHIE;
     return VEC_LHDH;
   } else if (lhowc == 0200000) {
@@ -277,6 +286,7 @@ t_stat lhdh_svc (UNIT *uptr)
       lhoca += 2;
     } else {
       lhocs &= ~LHGO;
+      lhocs |= LHRDY;
       if (lhocs & LHIE) {
         int_req |= INT_LHDH;
         fprintf (stderr, "LHDH: request OUTPUT interrupt (DMA)\r\n");
@@ -329,7 +339,7 @@ t_stat ldhd_receive_bit (int bit, int last)
     if (lhics & LHGO) {
       int page, x, map;
 
-      fprintf (stderr, "LHDH: write DMA: %012llo -> %o\r\n", lhidb, lhica);
+      //fprintf (stderr, "LHDH: write DMA: %012llo -> %o\r\n", lhidb, lhica);
 
       page = lhica >> 11;
       map = ubmap[1][page];
@@ -337,17 +347,16 @@ t_stat ldhd_receive_bit (int bit, int last)
         fprintf (stderr, "LHDH: invalid Unibus mapping\r\n");
 
       lhidb = ((lhidb & 0377) << 8) + ((lhidb >> 8) & 0377);
-      fprintf (stderr, "swapped: %llo\r\n", lhidb);
 
       x = (map & 03777) + ((lhica >> 2) & 0777);
       if (lhiwc & 1) {
         lhidb += Read (x, 1) & 0777777000000;
         Write (x, lhidb, 1);
-        fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
+        //fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
       } else {
         lhidb = (lhidb << 18) + (Read (x, 1) & 0777777);
         Write (x, lhidb, 1);
-        fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
+        //fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
       }
 
       lhica += 2;
@@ -365,7 +374,7 @@ t_stat ldhd_receive_bit (int bit, int last)
   };
 
   if (last) {
-    lhics |= LHEOM;
+    lhics |= (LHEOM|LHRDY);
     lhics &= ~LHGO;
     if (lhics & LHIE) {
       fprintf (stderr, "LHDH: request INPUT interrupt (DMA)\r\n");
