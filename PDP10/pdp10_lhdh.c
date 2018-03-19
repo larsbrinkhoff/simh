@@ -237,12 +237,12 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
 
 int32 lhdh_inta (void)
 {
-  if (lhics & (LHEOM | LHIB)) {
+  if ((lhics & LHIE) && (lhics & (LHEOM | LHIB))) {
     fprintf (stderr, "LHDH: interupt acknowledge INPUT, last bit %d, buf full %d, int en %d\r\n",
              (lhics & LHEOM), (lhics & LHIB), (lhics & LHIE));
     lhics &= ~LHIE;
     return VEC_LHDH;
-  } else if (lhowc == 0200000) {
+  } else if ((lhocs & LHIE) && lhowc == 0200000) {
     fprintf (stderr, "LHDH: interupt acknowledge OUTPUT\r\n");
     lhocs &= ~LHIE;
     return VEC_LHDH + 4;
@@ -293,23 +293,6 @@ t_stat lhdh_svc (UNIT *uptr)
     }
   }
 
-#if 0
-#define LHA16     060  /* Address bits 17 and 16 for extended unibus xfrs */
-#define LHIE     0100  /* Interrupt Enable */
-#define LHRDY    0200  /* Device Ready */
-#define LHMRE   01000  /* Master Ready Error */
-#define LHNXM  040000  /* Non Existant Memory on DMA */
-#define LHERR 0100000  /* Error present */
-
-/* Input status and control. */
-#define LHHRC      04  /* Host Ready Relay Control */
-#define LHSE      010  /* Store Enable */
-#define LHIB     0400  /* Input Buffer Full */
-#define LHINR   02000  /* IMP not ready */
-#define LHHR    04000  /* Host Ready */
-#define LHEOM  020000  /* End-of-Message received from IMP */
-#endif
-
   sim_activate (uptr, 10000);
   return SCPE_OK;
 }
@@ -318,8 +301,6 @@ int ibits;
 
 t_stat ldhd_receive_bit (int bit, int last)
 {
-  //fprintf (stderr, "IMP wants host to receive a bit.\r\n");
-
   if ((lhics & LHSE) == 0) {
     //fprintf (stderr, "LHDH: don't want it\r\n");
     return SCPE_ARG;
@@ -363,7 +344,7 @@ t_stat ldhd_receive_bit (int bit, int last)
       ibits = 0;
       lhidb = 0;
     } else {
-      //fprintf (stderr, "LHDH: input buffer full\r\n");
+      fprintf (stderr, "LHDH: input buffer full\r\n");
       lhics |= LHIB;
       if (lhics & LHIE) {
         fprintf (stderr, "LHDH: request INPUT interrupt (buf full)\r\n");
