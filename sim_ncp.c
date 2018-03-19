@@ -246,7 +246,7 @@ t_stat ncp_reset (IMP *i)
       return SCPE_UNATT;
 
     system ("ifconfig imp0 up");
-    system ("route add 10.3.0.6 imp0");
+    system ("route add 10.2.0.6 imp0");
   }
 
   return SCPE_OK;

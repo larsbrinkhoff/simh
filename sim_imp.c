@@ -89,9 +89,9 @@ static void print_packet (FILE *f, uint8 *octets, int n)
 t_stat imp_send_packet (IMP *imp, void *packet, int n)
 {
   uint8 *octets = packet;
-  //fprintf (stderr, "IMP from host: ");
-  //print_packet (stderr, octets, n);
-  //fprintf (stderr, "\r\n");
+  fprintf (stderr, "IMP from host: ");
+  print_packet (stderr, octets, n);
+  fprintf (stderr, "\r\n");
   ncp_process (octets);
 }
 
@@ -106,9 +106,9 @@ t_stat imp_receive_packet (IMP *imp, void *packet, int n)
   if (!ready)
     return SCPE_UDIS;
 
-  //fprintf (stderr, "IMP to host: ");
-  //print_packet (stderr, octets, n);
-  //fprintf (stderr, "\r\n");
+  fprintf (stderr, "IMP to host: ");
+  print_packet (stderr, packet, n);
+  fprintf (stderr, "\r\n");
 
   memcpy (imp->packet_to_host, packet, n/8);
   ready = 0;
