@@ -35,6 +35,7 @@
 #include "sim_tun.h"
 
 static t_stat ncp_svc (UNIT *);
+static void send_rfnm (uint8 *x);
 
 UNIT ncp_unit[1] = {{ UDATA (ncp_svc, 0, 0)}};
 
@@ -69,8 +70,10 @@ static t_stat process_regular (uint8 *packet)
     {
     case 0:
       //fprintf (stderr, "NCP: Standard, non refusable\r\n");
-      if (packet[8] == 0233)
+      if (packet[8] == 0233) {
         process_ip (packet + 12 + padding/8);
+        send_rfnm (packet);
+      }
       else if (packet[8] == 0)
         ; // Host-to-host control messages.
       else if (packet[8] >= 2 && packet[8] <= 0107)
@@ -112,11 +115,18 @@ static void send_nop (void)
     init_state++;
 }
 
-static void send_rfnm (void)
+static void send_rfnm (uint8 *x)
 {
+  fprintf (stderr, "NCP: send RFNM\r\n");
+
   memset (packet, 0, sizeof packet);
   packet[0] = 0x0F; // new format
   packet[3] = 5; // Ready for next message
+  packet[5] = x[5];
+  packet[6] = x[6];
+  packet[7] = x[7];
+  packet[8] = x[8];
+  packet[9] = x[9];
 
   if (imp_receive_packet (imp, &packet, 96) == SCPE_OK)
     init_state++;
