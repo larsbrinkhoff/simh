@@ -104,40 +104,40 @@ IMP imp;
 
 t_stat lhdh_rd (int32 *data, int32 PA, int32 access)
 {
-  fprintf (stderr, "LHDH: read from %o\r\n", PA);
+  //fprintf (stderr, "LHDH: read from %o\r\n", PA);
   switch (PA) {
   case 03767600: /* Input Control and Status */
     *data = lhics;
-    fprintf (stderr, "LHDH: in control = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read input CS = %o\r\n", *data);
     break;
   case 03767602: /* Input Data Buffer */
     *data = lhidb;
     lhics &= ~LHIB;
-    fprintf (stderr, "LHDH: in data = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read input DB = %o\r\n", *data);
     break;
   case 03767604: /* Input Current Word Address */
     *data = lhica;
-    fprintf (stderr, "LHDH: in addr = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read input CA = %o\r\n", *data);
     break;
   case 03767606: /* Input Word Count */
     *data = lhiwc;
-    fprintf (stderr, "LHDH: in count = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read input WC = %o\r\n", *data);
     break;
   case 03767610: /* Output Control and Status */
     *data = lhocs;
-    fprintf (stderr, "LHDH: out control = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read output CS = %o\r\n", *data);
     break;
   case 03767612: /* Output Data Buffer */
     *data = lhodb;
-    fprintf (stderr, "LHDH: out data = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read output DB = %o\r\n", *data);
     break;
   case 03767614: /* Output Current Word Address */
     *data = lhoca;
-    fprintf (stderr, "LHDH: out addr = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read output CA = %o\r\n", *data);
     break;
   case 03767616: /* Output Word Count */
     *data = lhowc;
-    fprintf (stderr, "LHDH: out count = %o\r\n", *data);
+    fprintf (stderr, "LHDH: Read output WC = %o\r\n", *data);
     break;
   default:
     *data = 0;
@@ -148,25 +148,24 @@ t_stat lhdh_rd (int32 *data, int32 PA, int32 access)
 
 t_stat lhdh_wr (int32 data, int32 PA, int32 access)
 {
-  fprintf (stderr, "LHDH: write to %o\r\n", PA);
   switch (PA) {
   case 03767600: /* Input Control and Status */
-    fprintf (stderr, "in control: %06o\r\n", data);
+    fprintf (stderr, "LHDH: Write input CS: %06o\r\n", data);
 
     if (data & LHGO)
-      fprintf (stderr, "in start DMA\r\n");
+      fprintf (stderr, "Start DMA\r\n");
     if (data & LHIE)
-      fprintf (stderr, "in interrupt enable\r\n");
+      fprintf (stderr, "Interrupt enable\r\n");
     if (data & LHRDY)
-      fprintf (stderr, "in ready\r\n");
+      fprintf (stderr, "Ready\r\n");
     if (data & LHMRE)
-      fprintf (stderr, "in master ready\r\n");
+      fprintf (stderr, "Master ready\r\n");
     if (data & LHSE)
-      fprintf (stderr, "in store enable\r\n");
+      fprintf (stderr, "Store enable\r\n");
     if (data & LHHRC)
-      fprintf (stderr, "in host ready relay\r\n");
+      fprintf (stderr, "Host ready relay\r\n");
     if (data & LHHR)
-      fprintf (stderr, "in host ready\r\n");
+      fprintf (stderr, "Host ready\r\n");
 
     lhics &= ~(LHGO|LHRST|LHA16|LHIE|LHHRC|LHSE|LHHR);
     lhics |= data & (LHGO|LHRST|LHA16|LHIE|LHHRC|LHSE|LHHR);
@@ -176,37 +175,37 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
       lhics &= ~(LHEOM|LHRDY);
     break;
   case 03767602: /* Input Data Buffer */
-    fprintf (stderr, "in data: %06o\r\n", data);
+    fprintf (stderr, "LHDH: Write input DB: %06o\r\n", data);
     lhidb = data;
     break;
   case 03767604: /* Input Current Word Address */
-    fprintf (stderr, "in addr: %06o\r\n", data);
+    fprintf (stderr, "LHDH: Write input CA: %06o\r\n", data);
     lhica = data;
     break;
   case 03767606: /* Input Word Count */
-    fprintf (stderr, "in count: %06o (%d 16-bit words)\r\n",
+    fprintf (stderr, "LHDH: Write input WC: %06o (%d 16-bit words)\r\n",
              data, -(data + (-1 << 16)));
     lhiwc = data;
     break;
   case 03767610: /* Output Control and Status */
-    fprintf (stderr, "out control: %06o\r\n", data);
+    fprintf (stderr, "LHDH: Write output CS: %06o\r\n", data);
 
     if (data & LHGO)
-      fprintf (stderr, "out start DMA\r\n");
+      fprintf (stderr, "Start DMA\r\n");
     if (data & LHELB)
-      fprintf (stderr, "out last bit\r\n");
+      fprintf (stderr, "Last bit\r\n");
     if (data & LHA16)
-      fprintf (stderr, "out address 16-17\r\n");
+      fprintf (stderr, "Address 16-17\r\n");
     if (data & LHIE)
-      fprintf (stderr, "out interrupt enable\r\n");
+      fprintf (stderr, "Interrupt enable\r\n");
     if (data & LHRDY)
-      fprintf (stderr, "out ready\r\n");
+      fprintf (stderr, "Ready\r\n");
     if (data & LHBB)
-      fprintf (stderr, "out bus back\r\n");
+      fprintf (stderr, "Bus back\r\n");
     if (data & LHOBE)
-      fprintf (stderr, "out empty\r\n");
+      fprintf (stderr, "Buffer empty\r\n");
     if (data & LHWC0)
-      fprintf (stderr, "out count zero\r\n");
+      fprintf (stderr, "Count zero\r\n");
 
     lhocs &= ~(LHGO|LHRST|LHA16|LHIE|LHELB|LHBB);
     lhocs |= data & (LHGO|LHRST|LHA16|LHIE|LHELB|LHBB);
@@ -215,15 +214,15 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
 
     break;
   case 03767612: /* Output Data Buffer */
-    fprintf (stderr, "out data: %06o\r\n", data);
+    fprintf (stderr, "LHDH: Write output DB: %06o\r\n", data);
     lhodb = data;
     break;
   case 03767614: /* Output Current Word Address */
-    fprintf (stderr, "out addr: %06o\r\n", data);
+    fprintf (stderr, "LHDH: Write output CA: %06o\r\n", data);
     lhoca = data;
     break;
   case 03767616: /* Output Word Count */
-    fprintf (stderr, "out count: %06o (%d 16-bit words)\r\n",
+    fprintf (stderr, "LHDH: Write output WC: %06o (%d 16-bit words)\r\n",
              data, -(data + (-1 << 16)));
     lhowc = data;
     break;
@@ -322,7 +321,7 @@ t_stat ldhd_receive_bit (int bit, int last)
   //fprintf (stderr, "IMP wants host to receive a bit.\r\n");
 
   if ((lhics & LHSE) == 0) {
-    fprintf (stderr, "LHDH: don't want it\r\n");
+    //fprintf (stderr, "LHDH: don't want it\r\n");
     return SCPE_ARG;
   };
 
