@@ -62,6 +62,10 @@ d10    lhodb; /* Output data buffer */
 uint32 lhoca; /* Output current address */
 uint32 lhowc; /* Output word count */
 
+int req_in_int;
+int req_out_int;
+int ibits;
+
 extern int32 ubmap[UBANUM][UMAP_MEMSIZE];               /* Unibus map */
 extern int32 ubcs[UBANUM];
 
@@ -70,6 +74,7 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access);
 int32 lhdh_inta (void);
 t_stat lhdh_svc (UNIT *uptr);
 t_stat lhdh_reset (DEVICE *dptr);
+static t_stat receive_word (void);
 
 DIB lhdh_dib = {
     IOBA_LHDH, IOLN_LHDH, &lhdh_rd, &lhdh_wr,
@@ -113,6 +118,7 @@ t_stat lhdh_rd (int32 *data, int32 PA, int32 access)
   case 03767602: /* Input Data Buffer */
     *data = lhidb;
     lhics &= ~LHIB;
+    ibits = 0;
     fprintf (stderr, "LHDH: Read input DB = %o\r\n", *data);
     break;
   case 03767604: /* Input Current Word Address */
@@ -173,6 +179,8 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
       lhics |= LHHR;
     if (data & LHGO)
       lhics &= ~(LHEOM|LHRDY);
+    if (ibits == 16)
+      receive_word ();
     break;
   case 03767602: /* Input Data Buffer */
     fprintf (stderr, "LHDH: Write input DB: %06o\r\n", data);
@@ -237,14 +245,16 @@ t_stat lhdh_wr (int32 data, int32 PA, int32 access)
 
 int32 lhdh_inta (void)
 {
-  if ((lhics & LHIE) && (lhics & (LHEOM | LHIB))) {
+  if (req_in_int && (lhics & (LHEOM | LHIB))) {
     fprintf (stderr, "LHDH: interupt acknowledge INPUT, last bit %d, buf full %d, int en %d\r\n",
              (lhics & LHEOM), (lhics & LHIB), (lhics & LHIE));
     lhics &= ~LHIE;
+    req_in_int = 0;
     return VEC_LHDH;
-  } else if ((lhocs & LHIE) && lhowc == 0200000) {
+  } else if (req_out_int && lhowc == 0200000) {
     fprintf (stderr, "LHDH: interupt acknowledge OUTPUT\r\n");
     lhocs &= ~LHIE;
+    req_out_int = 0;
     return VEC_LHDH + 4;
   } else {
     fprintf (stderr, "LHDH: interupt acknowledge UNKNOWN\r\n");
@@ -289,6 +299,7 @@ t_stat lhdh_svc (UNIT *uptr)
       if (lhocs & LHIE) {
         int_req |= INT_LHDH;
         fprintf (stderr, "LHDH: request OUTPUT interrupt (DMA)\r\n");
+        req_out_int = 1;
       }
     }
   }
@@ -297,10 +308,51 @@ t_stat lhdh_svc (UNIT *uptr)
   return SCPE_OK;
 }
 
-int ibits;
+static t_stat receive_word (void)
+{
+  fprintf (stderr, "LHDH: receive word\r\n");
+  if (lhics & LHGO) {
+    int page, x, map;
+
+    fprintf (stderr, "LHDH: receive through DMA\r\n");
+
+    page = lhica >> 11;
+    map = ubmap[1][page];
+    if (page >= UMAP_MEMSIZE || !(map & UMAP_VLD))
+      fprintf (stderr, "LHDH: invalid Unibus mapping\r\n");
+
+    lhidb = ((lhidb & 0377) << 8) + ((lhidb >> 8) & 0377);
+
+    x = (map & 03777) + ((lhica >> 2) & 0777);
+    if (lhiwc & 1) {
+      lhidb += Read (x, 1) & 0777777000000;
+      Write (x, lhidb, 1);
+      //fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
+    } else {
+      lhidb = (lhidb << 18) + (Read (x, 1) & 0777777);
+      Write (x, lhidb, 1);
+      //fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
+    }
+
+    lhica += 2;
+    lhiwc++;
+    ibits = 0;
+    lhidb = 0;
+  } else {
+    fprintf (stderr, "LHDH: input buffer full\r\n");
+    lhics |= LHIB;
+    if (lhics & LHIE) {
+      fprintf (stderr, "LHDH: request INPUT interrupt (buf full)\r\n");
+      int_req |= INT_LHDH;
+      req_in_int = 1;
+    }
+  }
+}
 
 t_stat ldhd_receive_bit (int bit, int last)
 {
+  //fprintf (stderr, "IMP wants host to receive a bit.\r\n");
+
   if ((lhics & LHSE) == 0) {
     //fprintf (stderr, "LHDH: don't want it\r\n");
     return SCPE_ARG;
@@ -315,43 +367,8 @@ t_stat ldhd_receive_bit (int bit, int last)
   lhidb |= bit & 1;
   ibits++;
 
-  if (ibits == 16) {
-    if (lhics & LHGO) {
-      int page, x, map;
-
-      //fprintf (stderr, "LHDH: write DMA: %012llo -> %o\r\n", lhidb, lhica);
-
-      page = lhica >> 11;
-      map = ubmap[1][page];
-      if (page >= UMAP_MEMSIZE || !(map & UMAP_VLD))
-        fprintf (stderr, "LHDH: invalid Unibus mapping\r\n");
-
-      lhidb = ((lhidb & 0377) << 8) + ((lhidb >> 8) & 0377);
-
-      x = (map & 03777) + ((lhica >> 2) & 0777);
-      if (lhiwc & 1) {
-        lhidb += Read (x, 1) & 0777777000000;
-        Write (x, lhidb, 1);
-        //fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
-      } else {
-        lhidb = (lhidb << 18) + (Read (x, 1) & 0777777);
-        Write (x, lhidb, 1);
-        //fprintf (stderr, "write %llo to %o\r\n", lhidb, x);
-      }
-
-      lhica += 2;
-      lhiwc++;
-      ibits = 0;
-      lhidb = 0;
-    } else {
-      fprintf (stderr, "LHDH: input buffer full\r\n");
-      lhics |= LHIB;
-      if (lhics & LHIE) {
-        fprintf (stderr, "LHDH: request INPUT interrupt (buf full)\r\n");
-        int_req |= INT_LHDH;
-      }
-    }
-  };
+  if (ibits == 16)
+    receive_word ();
 
   if (last) {
     lhics |= (LHEOM|LHRDY);
@@ -359,6 +376,7 @@ t_stat ldhd_receive_bit (int bit, int last)
     if (lhics & LHIE) {
       fprintf (stderr, "LHDH: request INPUT interrupt (DMA)\r\n");
       int_req |= INT_LHDH;
+      req_in_int = 1;
     }
   }
 
@@ -371,6 +389,9 @@ t_stat lhdh_reset (DEVICE *dptr)
 
   imp_reset (&imp);
   imp.receive_bit = ldhd_receive_bit;
+
+  req_in_int = 0;
+  req_out_int = 0;
 
   ibits = 0;
   lhidb = 0;
