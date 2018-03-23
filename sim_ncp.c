@@ -51,6 +51,8 @@ static int init_state = 0;
 static int padding = 0;
 static int tun = -1;
 
+static uint8 rfnm[12];
+
 static t_stat process_ip (uint8 *packet)
 {
   int n1, n2;
@@ -128,8 +130,10 @@ static void send_rfnm (uint8 *x)
   packet[8] = x[8];
   packet[9] = x[9];
 
-  if (imp_receive_packet (imp, &packet, 96) == SCPE_OK)
-    init_state++;
+  if (imp_receive_packet (imp, &packet, 96) != SCPE_OK) {
+    //fprintf (stderr, "RFNM DROPPED!\r\n");
+    memcpy (rfnm, packet, 12);
+  }
 }
 
 static void send_reset (void)
@@ -245,13 +249,15 @@ t_stat ncp_reset (IMP *i)
 
   imp = i;
   init_state = 0;
+  rfnm[3] = 0;
+
   sim_register_internal_device (&ncp);
   sim_activate (ncp_unit, 10000);
 
   if (tun == -1) {
     strcpy (ifname, "imp0");
     tun = tun_alloc (ifname);
-    fprintf (stderr, "NCP: tun %s fd = %d\r\n", ifname, tun);
+    //fprintf (stderr, "NCP: tun %s fd = %d\r\n", ifname, tun);
     if (tun < 0)
       return SCPE_UNATT;
 
@@ -264,6 +270,18 @@ t_stat ncp_reset (IMP *i)
 
 int octets = 0;
 uint8 buffer[1500];
+
+static void process_rfnm (void)
+{
+  if (rfnm[3] != 5)
+    return;
+
+  if (imp_receive_packet (imp, rfnm, 96) == SCPE_OK) {
+    fprintf (stderr, "Delayed RFNM\r\n");
+    rfnm[3] = 0;
+  } else
+    fprintf (stderr, "Waiting to send RFNM...\r\n");
+}
 
 static void process_buffer (void)
 {
@@ -313,6 +331,7 @@ static t_stat ncp_svc (UNIT *uptr)
       send_reset ();
   else if (init_state > 6) {
       check_ether ();
+      process_rfnm ();
       process_buffer ();
   }
   

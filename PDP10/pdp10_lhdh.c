@@ -310,11 +310,11 @@ t_stat lhdh_svc (UNIT *uptr)
 
 static t_stat receive_word (void)
 {
-  fprintf (stderr, "LHDH: receive word\r\n");
+  //fprintf (stderr, "LHDH: receive word\r\n");
   if (lhics & LHGO) {
     int page, x, map;
 
-    fprintf (stderr, "LHDH: receive through DMA\r\n");
+    //fprintf (stderr, "LHDH: receive through DMA\r\n");
 
     page = lhica >> 11;
     map = ubmap[1][page];
@@ -339,7 +339,7 @@ static t_stat receive_word (void)
     ibits = 0;
     lhidb = 0;
   } else {
-    fprintf (stderr, "LHDH: input buffer full\r\n");
+    //fprintf (stderr, "LHDH: input buffer full\r\n");
     lhics |= LHIB;
     if (lhics & LHIE) {
       fprintf (stderr, "LHDH: request INPUT interrupt (buf full)\r\n");
