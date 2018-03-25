@@ -57,6 +57,10 @@ static t_stat process_ip (uint8 *packet)
 {
   int n1, n2;
 
+  fprintf (stderr, "IP from host: %d.%d.%d.%d -> %d.%d.%d.%d\r\n",
+           packet[12], packet[13], packet[14], packet[15],
+           packet[16], packet[17], packet[18], packet[19]);
+
   n1 = (packet[2] << 8) + packet[3];
   n2 = write (tun, packet, n1);
   if (n2 == -1)
@@ -102,7 +106,7 @@ static t_stat process_regular (uint8 *packet)
 
 int local_host_id = 0206; // MIT-AI ARPAnet host number
 int local_imp_id = 070707; // Random number
-uint8 packet[1000];
+uint8 packet[2000];
 
 static void send_nop (void)
 {
@@ -131,7 +135,8 @@ static void send_rfnm (uint8 *x)
   packet[9] = x[9];
 
   if (imp_receive_packet (imp, &packet, 96) != SCPE_OK) {
-    //fprintf (stderr, "RFNM DROPPED!\r\n");
+    if (rfnm[3] == 5)
+      fprintf (stderr, "RFNM DROPPED!\r\n");
     memcpy (rfnm, packet, 12);
   }
 }
@@ -269,7 +274,7 @@ t_stat ncp_reset (IMP *i)
 }
 
 int octets = 0;
-uint8 buffer[1500];
+uint8 buffer[2000];
 
 static void process_rfnm (void)
 {
@@ -285,16 +290,22 @@ static void process_rfnm (void)
 
 static void process_buffer (void)
 {
-  uint8 message[1000];
+  uint8 message[2000];
 
   if (octets == 0)
     return;
 
+  fprintf (stderr, "IP to host: %d.%d.%d.%d -> %d.%d.%d.%d\r\n",
+           buffer[12], buffer[13], buffer[14], buffer[15],
+           buffer[16], buffer[17], buffer[18], buffer[19]);
   memset (message, 0, sizeof message);
 
   // 1822 leader.
   message[0] = 0x0F; // new format
   message[3] = 0; // Host-to-host
+  message[5] = buffer[13]; // host
+  message[6] = buffer[14]; // IMP
+  message[7] = buffer[15]; // IMP
   message[8] = 0233; // IP
 
   memcpy (message + 12 + padding/8, buffer, octets);

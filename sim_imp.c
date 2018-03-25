@@ -88,8 +88,12 @@ static void print_packet (FILE *f, uint8 *octets, int n)
 /* Send a complete packet to IMP. */
 t_stat imp_send_packet (IMP *imp, void *packet, int n)
 {
+  int hostno, impno;
   uint8 *octets = packet;
-  fprintf (stderr, "IMP from host: ");
+  hostno = octets[5];
+  impno = octets[6] << 8;
+  impno += octets[7];
+  fprintf (stderr, "IMP from host (%o/%o): ", hostno, impno);
   print_packet (stderr, octets, n);
   fprintf (stderr, "\r\n");
   ncp_process (octets);
@@ -101,12 +105,15 @@ int bits = 0;
 /* Send a complete packet to the host. */
 t_stat imp_receive_packet (IMP *imp, void *packet, int n)
 {
-  int i;
+  int i, hostno, impno;
 
   if (!ready)
     return SCPE_UDIS;
 
-  fprintf (stderr, "IMP to host: ");
+  hostno = ((uint8 *)packet)[5];
+  impno = ((uint8 *)packet)[6] << 8;
+  impno += ((uint8 *)packet)[7];
+  fprintf (stderr, "IMP to host (%o/%o): ", hostno, impno);
   print_packet (stderr, packet, n);
   fprintf (stderr, "\r\n");
 

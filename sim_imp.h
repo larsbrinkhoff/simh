@@ -25,8 +25,8 @@ struct imp_device {
   int imp_error;
   int host_error;
 
-  uint8 packet_to_imp[1020];
-  uint8 packet_to_host[1020];
+  uint8 packet_to_imp[2000];
+  uint8 packet_to_host[2000];
   size_t bits_to_imp;
   size_t bits_to_host;
 };
