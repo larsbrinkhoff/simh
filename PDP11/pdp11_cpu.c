@@ -231,6 +231,14 @@
 #include "pdp11_defs.h"
 #include "pdp11_cpumod.h"
 
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+
 #define PCQ_SIZE        64                              /* must be 2**n */
 #define PCQ_MASK        (PCQ_SIZE - 1)
 #define PCQ_ENTRY       pcq[pcq_p = (pcq_p - 1) & PCQ_MASK] = PC
@@ -316,6 +324,20 @@ int32 last_pa;                                          /* pa from ReadMW/ReadMB
 int32 saved_sim_interval;                               /* saved at inst start */
 t_stat reason;                                          /* stop reason */
 
+/* External Unibus interface. */
+#define BUSNO           0
+#define DATO            1
+#define DATI            2
+#define ACK             3
+#define ERR             4
+
+/* Waiting for a new request. */
+#define TEN11_NEW 255
+
+static int ten11_fd = -1;
+static unsigned char ten11_request[8];
+static unsigned char ten11_octets = TEN11_NEW;
+
 extern int32 CPUERR, MAINT;
 extern CPUTAB cpu_tab[];
 
@@ -355,6 +377,10 @@ void set_stack_trap (int32 adr);
 int32 get_PSW (void);
 void put_PSW (int32 val, t_bool prot);
 void put_PIRQ (int32 val);
+static int ten11_init (void);
+static int ten11_check (void);
+static int read_all (int fd, unsigned char *data, int n);
+static int write_all (int fd, unsigned char *data, int n);
 
 extern void fp11 (int32 IR);
 extern t_stat cis11 (int32 IR);
@@ -809,6 +835,8 @@ while (reason == 0)  {
     int32 IR, srcspec, srcreg, dstspec, dstreg;
     int32 src, src2, dst, ea;
     int32 i, t, sign, oldrs, trapnum;
+
+    ten11_check ();
 
     if (cpu_astop) {
         cpu_astop = 0;
@@ -3336,6 +3364,187 @@ else if (CPUT (HAS_STKLR)) {                            /* register limit? */
 return;                                                 /* no stack limit */
 }
 
+static void build (unsigned char *request, unsigned char octet)
+{
+  request[0]++;
+  request[request[0]] = octet;
+}
+
+static int ten11_error (const char *message)
+{
+  //sim_debug (DEBUG_TEN11, &cpu_dev, "%s", message);
+  close (ten11_fd);
+  ten11_fd = -1;
+  return -1;
+}
+
+static void flush_socket (int fd)
+{ 
+  int flag = 1;
+  setsockopt (fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof flag);
+  flag = 0;
+  setsockopt (fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof flag);
+}
+
+static int ten11_init (void)
+{
+  struct sockaddr_in address;
+  int flags;
+
+  if (ten11_fd != -1) {
+    fprintf (stderr, "TEN11 already connected\r\n");
+    return -1;
+  }
+
+  memset (&address, 0, sizeof address);
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+  address.sin_len = sizeof *address;
+#endif
+  address.sin_family = PF_INET;
+  address.sin_port = htons (1234);
+  address.sin_addr.s_addr = inet_addr ("127.0.0.1");
+
+  ten11_fd = socket (AF_INET, SOCK_STREAM, 0);
+  if (ten11_fd == -1)
+    return -1;
+
+  if (connect (ten11_fd, (struct sockaddr *)&address,
+               sizeof (struct sockaddr_in)) == -1)
+    ten11_error ("Connect error");
+
+  memset (ten11_request, 0, sizeof ten11_request);
+  build (ten11_request, BUSNO);
+  build (ten11_request, 0);
+  if (write_all (ten11_fd, ten11_request, 3) == -1)
+    ten11_error ("Error writing Unibus number");
+
+  flush_socket (ten11_fd);
+
+  if (read (ten11_fd, ten11_request, 2) != 2)
+    ten11_error ("Error reading Unibus ACK");
+
+  if (ten11_request[0] != 1 || ten11_request[1] != 3)
+    ten11_error ("Error reading Unibus ACK");
+
+  return 0;
+}
+
+static int read_all (int fd, unsigned char *data, int n)
+{
+  int m;
+
+  while (n > 0) {
+    m = read (fd, data, n);
+    if (m == -1)
+      return -1;
+    data += m;
+    n -= m;
+  }
+
+  return 0;
+}
+
+static int write_all (int fd, unsigned char *data, int n)
+{
+  int m;
+
+  while (n > 0) {
+    m = write (fd, data, n);
+    if (m == -1)
+      return -1;
+    data += m;
+    n -= m;
+  }
+
+  return 0;
+}
+
+static int ten11_check (void)
+{
+  int addr;
+  int octets;
+  int word;
+  ssize_t n;
+  t_stat stat;
+
+  if (ioctl (ten11_fd, FIONREAD, &octets) != 0)
+    return ten11_error ("Ioctl");
+
+  if (octets == 0)
+    return 0;
+
+  if (ten11_octets == TEN11_NEW)
+    {
+      n = read (ten11_fd, ten11_request, 1);
+      if (n != 1)
+        return ten11_error ("Read error");
+      if (ten11_request[0] > sizeof ten11_request - 1)
+        return ten11_error ("Protocol error");
+      ten11_octets = 0;
+      return 0;
+    }
+
+  if (octets > (ten11_request[0] - ten11_octets))
+    octets = ten11_request[0] - ten11_octets;
+
+  n = read (ten11_fd, ten11_request + 1 + ten11_octets, octets);
+  if (n == -1)
+    return ten11_error ("Read error");
+  
+  ten11_octets += n;
+
+  if (ten11_octets < ten11_request[0])
+    return 0;
+
+  switch (ten11_request[1]) {
+  case DATO:
+    if (ten11_request[0] != 6)
+      ten11_error ("Protocol error");
+    addr = ten11_request[2];
+    addr |= ten11_request[3] << 8;
+    addr |= ten11_request[4] << 16;
+    //fprintf (stderr, "TEN11: Write: %06o <- %06o\r\n", addr,
+             //ten11_request[5] + (ten11_request[6] << 8));
+    stat = cpu_dep (ten11_request[5] + (ten11_request[6] << 8), addr, 0, 0);
+    memset (ten11_request, 0, sizeof ten11_request);
+    if (stat == SCPE_OK) {
+      build (ten11_request, ACK);
+    } else {
+      build (ten11_request, ERR);
+    }
+    if (write_all (ten11_fd, ten11_request, 2) == -1)
+      return ten11_error ("Write error");
+    break;
+  case DATI:
+    if (ten11_request[0] != 4)
+      ten11_error ("Protocol error");
+    addr = ten11_request[2];
+    addr |= ten11_request[3] << 8;
+    addr |= ten11_request[4] << 16;
+    memset (ten11_request, 0, sizeof ten11_request);
+    if (cpu_ex (&word, addr, 0, 0) == SCPE_OK) {
+      //fprintf (stderr, "TEN11: Read: %06o <- %06o\r\n", addr, word);
+      build (ten11_request, ACK);
+      build (ten11_request, word & 0377);
+      build (ten11_request, (word >> 8) & 0377);
+    } else {
+      fprintf (stderr, "TEN11: Read error: %06o\r\n", addr);
+      build (ten11_request, ERR);
+    }
+    if (write_all (ten11_fd, ten11_request, ten11_request[0] + 1) == -1)
+      return ten11_error ("Write error");
+    break;
+  default:
+    ten11_error ("Protocol error");
+    break;
+  }
+
+  flush_socket (ten11_fd);
+
+  ten11_octets = TEN11_NEW;
+  return 0;
+}
+
 /* Reset routine */
 
 t_stat cpu_reset (DEVICE *dptr)
@@ -3365,6 +3574,9 @@ if (M == NULL) {                    /* First time init */
     sim_vm_is_subroutine_call = &cpu_is_pc_a_subroutine_call;
     auto_config(NULL, 0);           /* do an initial auto configure */
     }
+
+ten11_init();
+
 pcq_r = find_reg ("PCQ", NULL, dptr);
 if (pcq_r)
     pcq_r->qptr = 0;
