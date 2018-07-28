@@ -651,6 +651,7 @@ typedef struct pdp_dib DIB;
 #define INT_V_LK        17
 #define INT_V_TDRX      18
 #define INT_V_TDTX      19
+#define INT_V_XGP       20
 
 #define INT_V_PIR3      0                               /* BR3 */
 #define INT_V_PIR2      0                               /* BR2 */
@@ -713,6 +714,7 @@ typedef struct pdp_dib DIB;
 #define INT_PIR1        (1u << INT_V_PIR1)
 #define INT_TDRX        (1u << INT_V_TDRX)
 #define INT_TDTX        (1u << INT_V_TDTX)
+#define INT_XGP         (1u << INT_V_XGP)
 
 #define INT_INTERNAL7   (INT_PIR7)
 #define INT_INTERNAL6   (INT_PIR6 | INT_CLK)
@@ -770,6 +772,7 @@ typedef struct pdp_dib DIB;
 #define IPL_VTCH        4
 #define IPL_VTNM        4
 #define IPL_LK          4           /* XXX just a guess */
+#define IPL_XGP         4           /* XXX just a guess */
 #define IPL_TDRX        4
 #define IPL_TDTX        4
 
