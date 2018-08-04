@@ -316,13 +316,6 @@ int32 last_pa;                                          /* pa from ReadMW/ReadMB
 int32 saved_sim_interval;                               /* saved at inst start */
 t_stat reason;                                          /* stop reason */
 
-/* External Unibus interface. */
-#define BUSNO           0
-#define DATO            1
-#define DATI            2
-#define ACK             3
-#define ERR             4
-
 extern int32 CPUERR, MAINT;
 extern CPUTAB cpu_tab[];
 
@@ -362,8 +355,6 @@ void set_stack_trap (int32 adr);
 int32 get_PSW (void);
 void put_PSW (int32 val, t_bool prot);
 void put_PIRQ (int32 val);
-static int read_all (int fd, unsigned char *data, int n);
-static int write_all (int fd, unsigned char *data, int n);
 
 extern void fp11 (int32 IR);
 extern t_stat cis11 (int32 IR);
@@ -3374,7 +3365,6 @@ if (M == NULL) {                    /* First time init */
     sim_vm_is_subroutine_call = &cpu_is_pc_a_subroutine_call;
     auto_config(NULL, 0);           /* do an initial auto configure */
     }
-
 pcq_r = find_reg ("PCQ", NULL, dptr);
 if (pcq_r)
     pcq_r->qptr = 0;
