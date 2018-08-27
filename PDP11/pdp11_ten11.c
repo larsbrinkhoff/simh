@@ -26,7 +26,7 @@
    TEN11    Rubin 10-11 Memory Access facility
 
    Information necessary to create this simulation was gathered from
-   Lar's Brinhoff:
+   Lars Brinkhoff:
 
    I/O Page Registers: none
 
@@ -114,7 +114,7 @@ DEVICE ten11_dev = {
     ten11_detach,                                       /* detach */
     NULL,                                               /* context */
     DEV_DISABLE | DEV_DIS | DEV_UBUS | DEV_DEBUG | DEV_MUX,
-    0,                                                  /* debug control */
+    DBG_CMD,                                            /* debug control */
     ten11_debug,                                        /* debug flags */
     NULL,                                               /* memory size chage */
     NULL,                                               /* logical name */
@@ -231,7 +231,7 @@ else {
     r = tmxr_attach_ex (&ten11_desc, uptr, attach_string, FALSE);
     if (r != SCPE_OK)                                       /* error? */
         return r;
-    sim_activate_after (ten11_connection_unit, 1000000);    /* start poll */
+    sim_activate_after (ten11_connection_unit, 10);    /* start poll */
     }
 uptr->flags |= UNIT_ATT;
 return SCPE_OK;
@@ -279,10 +279,12 @@ t_value data;
 
 sim_debug(DBG_TRC, &ten11_dev, "ten11_svc()\n");
 
+tmxr_poll_rx (&ten11_desc);
 stat = tmxr_get_packet_ln (&ten11_ldsc, &ten11_request, &size);
 
 if (stat == SCPE_OK) {
     if (ten11_request != NULL) {
+      sim_debug (DBG_CMD, &ten11_dev, "Got packet, size %lo\n", size);
         switch (ten11_request[1]) {
             case DATO:
                 if (ten11_request[0] != 6)
@@ -293,6 +295,7 @@ if (stat == SCPE_OK) {
                 data = ten11_request[5] | (ten11_request[6] << 8);
                 stat = cpu_dev.deposit (ten11_request[5] + (ten11_request[6] << 8), addr, 0, 0);
                 sim_debug (DBG_CMD, &ten11_dev, "Write: %06o <- %06o - %d - %s\n", (int)addr, (int)data, stat, sim_error_text (stat));
+                memset (ten11_response, 0, sizeof ten11_response);
                 if (stat == SCPE_OK)
                     build (ten11_response, ACK);
                 else {
@@ -303,6 +306,7 @@ if (stat == SCPE_OK) {
                     build (ten11_response, (stat >> 16) & 0377);
                     build (ten11_response, (stat >> 24) & 0377);
                     }
+                stat = tmxr_put_packet_ln (&ten11_ldsc, ten11_response, (size_t)ten11_response[0] + 1);
                 break;
             case DATI:
                 if (ten11_request[0] != 4)
@@ -312,6 +316,7 @@ if (stat == SCPE_OK) {
                 addr |= ten11_request[4] << 16;
                 stat = cpu_dev.examine (&data, addr, 0, 0);
                 sim_debug (DBG_CMD, &ten11_dev, "Read: %06o = %06o - %d - %s\n", (int)addr, (int)data, stat, sim_error_text (stat));
+                memset (ten11_response, 0, sizeof ten11_response);
                 if (stat == SCPE_OK) {
                     build (ten11_response, ACK);
                     build (ten11_response, data & 0377);
@@ -324,11 +329,14 @@ if (stat == SCPE_OK) {
                     build (ten11_response, (stat >> 16) & 0377);
                     build (ten11_response, (stat >> 24) & 0377);
                 }
+                stat = tmxr_put_packet_ln (&ten11_ldsc, ten11_response, (size_t)ten11_response[0] + 1);
+                break;
+            case ACK:
+                sim_debug (DBG_CMD, &ten11_dev, "Got ACK.\n");
                 break;
             default:
-                return sim_messagef (SCPE_IERR, "Protocol error - unexpected DATO request type: %d", ten11_request[0]);
+                return sim_messagef (SCPE_IERR, "Protocol error - unexpected request type: %d", ten11_request[0]);
             }
-            stat = tmxr_put_packet_ln (&ten11_ldsc, ten11_response, (size_t)ten11_response[0] + 1);
         }
     sim_activate (uptr, uptr->wait);    /* Reschedule */
     }
@@ -343,6 +351,16 @@ sim_debug(DBG_TRC, &ten11_dev, "ten11_conn_svc()\n");
 
 newconn = tmxr_poll_conn(&ten11_desc);      /* poll for a connection */
 if (newconn >= 0) {                         /* got a live one? */
+    uint8 ten11_request[10];
+    sim_debug(DBG_CMD, &ten11_dev, "got connection\n");
+    ten11_ldsc.rcve = 1;
+#if 1
+    memset (ten11_request, 0, sizeof ten11_request);
+    build (ten11_request, BUSNO);
+    build (ten11_request, 0);
+    sim_debug(DBG_CMD, &ten11_dev, "send unibus number, %u octets\n", ten11_request[0] + 1);
+    tmxr_put_packet_ln (&ten11_ldsc, ten11_request, (size_t)ten11_request[0] + 1);
+#endif
     sim_activate (ten11_action_unit, ten11_action_unit->wait);  /* Start activity poll */
     }
 sim_activate_after (uptr, 1000000);

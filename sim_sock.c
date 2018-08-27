@@ -795,8 +795,9 @@ return 0;
 static int sim_setnodelay (SOCKET sock)
 {
 int nodelay = 1;
-int sta;
+int sta = 0;
 
+#if 0
 /* disable Nagle algorithm */
 sta = setsockopt (sock, IPPROTO_TCP, TCP_NODELAY, (char *)&nodelay, sizeof(nodelay));
 if (sta == -1)
@@ -814,6 +815,7 @@ if (sta == -1)
 sta = setsockopt (sock, IPPROTO_TCP, TCP_QUICKACK, (char *)&nodelay, sizeof(nodelay));
 if (sta == -1)
     return SOCKET_ERROR;
+#endif
 #endif
 
 return sta;
@@ -1023,6 +1025,7 @@ if (sta == SOCKET_ERROR) {
             (WSAGetLastError () == WSAECONNREFUSED) ||
             (WSAGetLastError () == WSAECONNABORTED) ||
             (WSAGetLastError () == WSAECONNRESET)) {
+          fprintf (stderr, "CLOSE\r\n");
             sim_close_sock (newsock);
             newsock = INVALID_SOCKET;
             }
@@ -1243,7 +1246,9 @@ return rbytes;
 
 int sim_write_sock (SOCKET sock, const char *msg, int nbytes)
 {
-int err, sbytes = send (sock, msg, nbytes, 0);
+//int err, sbytes = send (sock, msg, nbytes, 0);
+int err, sbytes = write (sock, msg, nbytes);
+fprintf (stderr, "SOCK: sent %d/%d bytes to %d\r\n", sbytes, nbytes, sock);
 
 if (sbytes == SOCKET_ERROR) {
     err = WSAGetLastError ();
