@@ -2762,6 +2762,7 @@ while (*tptr) {
             cptr = init_cptr;
             }
         cptr = get_glyph_nc (cptr, port, ';');
+#if 1
         sock = sim_master_sock (port, &r);                      /* make master socket to validate port */
         if (r)
             return sim_messagef (SCPE_ARG, "Invalid Port Specifier: %s\n", port);
@@ -2770,6 +2771,7 @@ while (*tptr) {
           fprintf (stderr, "CLOSE 12\r\n");
         sim_close_sock (sock);
         sim_os_ms_sleep (2);                                    /* let the close finish (required on some platforms) */
+#endif
         strcpy (listen, port);
         cptr = get_glyph (cptr, option, ';');
         if (option[0]) {
@@ -2814,6 +2816,7 @@ while (*tptr) {
                     else
                         return sim_messagef (SCPE_ARG, "Unexpected specifier: %s\n", eptr);
                 }
+#if 0
             sock = sim_connect_sock_ex (NULL, hostport, "localhost", NULL, (datagram ? SIM_SOCK_OPT_DATAGRAM : 0) | (packet ? SIM_SOCK_OPT_NODELAY : 0));
             fprintf (stderr, "sim_connect_sock 4: %d\r\n", sock);
             if (sock != INVALID_SOCKET) {
@@ -2821,6 +2824,7 @@ while (*tptr) {
               //sim_close_sock (sock);
             } else
                 return sim_messagef (SCPE_ARG, "Invalid destination: %s\n", hostport);
+#endif
             }
         }
     if (line == -1) {
