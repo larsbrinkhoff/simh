@@ -88,7 +88,6 @@ static MTAB ten11_mod[] = {
 
 
 /* External Unibus interface. */
-#define BUSNO           0
 #define DATO            1
 #define DATI            2
 #define ACK             3
@@ -263,8 +262,8 @@ return r;
 
 static void build (uint8 *request, uint8 octet)
 {
-request[0]++;
-request[request[0]] = octet;
+request[1]++;
+request[request[1] + 1] = octet;
 }
 
 
@@ -285,15 +284,13 @@ stat = tmxr_get_packet_ln (&ten11_ldsc, &ten11_request, &size);
 if (stat == SCPE_OK) {
     if (ten11_request != NULL) {
       sim_debug (DBG_CMD, &ten11_dev, "Got packet, size %lo\n", size);
-        switch (ten11_request[1]) {
+        switch (ten11_request[0]) {
             case DATO:
-                if (ten11_request[0] != 6)
-                    return sim_messagef (SCPE_IERR, "Protocol error - unexpected DATO request length: %d", ten11_request[0]);
-                addr = ten11_request[2];
-                addr |= ten11_request[3] << 8;
-                addr |= ten11_request[4] << 16;
-                data = ten11_request[5] | (ten11_request[6] << 8);
-                stat = cpu_dev.deposit (ten11_request[5] + (ten11_request[6] << 8), addr, 0, 0);
+                addr = ten11_request[3];
+                addr |= ten11_request[2] << 8;
+                addr |= ten11_request[1] << 16;
+                data = ten11_request[5] | (ten11_request[4] << 8);
+                stat = cpu_dev.deposit (data, addr, 0, 0);
                 sim_debug (DBG_CMD, &ten11_dev, "Write: %06o <- %06o - %d - %s\n", (int)addr, (int)data, stat, sim_error_text (stat));
                 memset (ten11_response, 0, sizeof ten11_response);
                 if (stat == SCPE_OK)
@@ -301,35 +298,33 @@ if (stat == SCPE_OK) {
                 else {
                     sim_printf ("TEN11: DATO error: %06o - %d - %s\n", addr, stat, sim_error_text (stat));
                     build (ten11_response, ERR);
-                    build (ten11_response, stat & 0377);
-                    build (ten11_response, (stat >> 8) & 0377);
-                    build (ten11_response, (stat >> 16) & 0377);
                     build (ten11_response, (stat >> 24) & 0377);
+                    build (ten11_response, (stat >> 16) & 0377);
+                    build (ten11_response, (stat >> 8) & 0377);
+                    build (ten11_response, stat & 0377);
                     }
-                stat = tmxr_put_packet_ln (&ten11_ldsc, ten11_response, (size_t)ten11_response[0] + 1);
+                stat = tmxr_put_packet_ln (&ten11_ldsc, ten11_response + 2, (size_t)ten11_response[1]);
                 break;
             case DATI:
-                if (ten11_request[0] != 4)
-                    return sim_messagef (SCPE_IERR, "Protocol error - unexpected DATI request length: %d", ten11_request[0]);
-                addr = ten11_request[2];
-                addr |= ten11_request[3] << 8;
-                addr |= ten11_request[4] << 16;
+                addr = ten11_request[3];
+                addr |= ten11_request[2] << 8;
+                addr |= ten11_request[1] << 16;
                 stat = cpu_dev.examine (&data, addr, 0, 0);
                 sim_debug (DBG_CMD, &ten11_dev, "Read: %06o = %06o - %d - %s\n", (int)addr, (int)data, stat, sim_error_text (stat));
                 memset (ten11_response, 0, sizeof ten11_response);
                 if (stat == SCPE_OK) {
                     build (ten11_response, ACK);
-                    build (ten11_response, data & 0377);
                     build (ten11_response, (data >> 8) & 0377);
+                    build (ten11_response, data & 0377);
                 } else {
                     sim_printf ("TEN11: DATI error: %06o - %d - %s\n", addr, stat, sim_error_text (stat));
                     build (ten11_response, ERR);
-                    build (ten11_response, stat & 0377);
-                    build (ten11_response, (stat >> 8) & 0377);
-                    build (ten11_response, (stat >> 16) & 0377);
                     build (ten11_response, (stat >> 24) & 0377);
+                    build (ten11_response, (stat >> 16) & 0377);
+                    build (ten11_response, (stat >> 8) & 0377);
+                    build (ten11_response, stat & 0377);
                 }
-                stat = tmxr_put_packet_ln (&ten11_ldsc, ten11_response, (size_t)ten11_response[0] + 1);
+                stat = tmxr_put_packet_ln (&ten11_ldsc, ten11_response + 2, (size_t)ten11_response[1]);
                 break;
             case ACK:
                 sim_debug (DBG_CMD, &ten11_dev, "Got ACK.\n");
@@ -351,19 +346,11 @@ sim_debug(DBG_TRC, &ten11_dev, "ten11_conn_svc()\n");
 
 newconn = tmxr_poll_conn(&ten11_desc);      /* poll for a connection */
 if (newconn >= 0) {                         /* got a live one? */
-    uint8 ten11_request[10];
     sim_debug(DBG_CMD, &ten11_dev, "got connection\n");
     ten11_ldsc.rcve = 1;
-#if 1
-    memset (ten11_request, 0, sizeof ten11_request);
-    build (ten11_request, BUSNO);
-    build (ten11_request, 0);
-    sim_debug(DBG_CMD, &ten11_dev, "send unibus number, %u octets\n", ten11_request[0] + 1);
-    tmxr_put_packet_ln (&ten11_ldsc, ten11_request, (size_t)ten11_request[0] + 1);
-#endif
     sim_activate (ten11_action_unit, ten11_action_unit->wait);  /* Start activity poll */
     }
-sim_activate_after (uptr, 1000000);
+sim_activate_after (uptr, 10);
 return SCPE_OK;
 }
 
