@@ -204,6 +204,7 @@ int32 hst_p = 0;                                        /* history pointer */
 int32 hst_lnt = 0;                                      /* history length */
 InstHistory *hst = NULL;                                /* instruction history */
 int32 apr_serial = -1;                                  /* CPU Serial number */
+d10 console_lights = 0;
 
 /* Forward and external declarations */
 
@@ -241,6 +242,7 @@ d10 calc_jrstfea (d10 inst, int32 pflgs);
 void pi_dismiss (void);
 void set_newflags (d10 fl, t_bool jrst);
 extern t_bool aprid (a10 ea, int32 prv);
+t_bool lights (a10 ea, int32 prv);
 t_bool wrpi (a10 ea, int32 prv);
 t_bool rdpi (a10 ea, int32 prv);
 t_bool czpi (a10 ea, int32 prv);
@@ -387,6 +389,7 @@ REG cpu_reg[] = {
     { ORDATAD (WRU, sim_int_char, 8, "interrupt character") },
     { FLDATA (STOP_ILL, stop_op0, 0) },
     { BRDATAD (REG, acs, 8, 36, AC_NUM * AC_NBLK, "register sets") },
+    { ORDATAD (LIGHTS, console_lights, 36, "console lights") },
     { NULL }
     };
 
@@ -449,7 +452,7 @@ const d10 bytemask[64] = { 0,
 
 static t_bool (*io700d[16])(a10, int32) = {
     &aprid, NULL, NULL, NULL, &wrapr, &rdapr, &czapr, &coapr,
-    NULL, NULL, NULL, NULL, &wrpi, &rdpi, &czpi, &copi
+    NULL, NULL, NULL, &lights, &wrpi, &rdpi, &czpi, &copi
     };
 static t_bool (*io701d[16])(a10, int32) = {
     NULL, &rdubr, &clrpt, &wrubr, &wrebr, &rdebr, NULL, NULL,
@@ -2251,6 +2254,13 @@ set_dyn_ptrs ();                                        /* set new ptrs */
 return;
 }
 
+t_bool lights (a10 ea, int32 prv)
+{
+console_lights = Read (ea, prv);
+pdp10_lights_main (console_lights);
+return FALSE;
+}
+
 /* Priority interrupt system (PI)
 
    The priority interrupt system has three sources of requests
@@ -2373,6 +2383,7 @@ if (pcq_r)
     pcq_r->qptr = 0;
 else return SCPE_IERR;
 sim_brk_types = sim_brk_dflt = SWMASK ('E');
+pdp10_lights_init ();
 return SCPE_OK;
 }
 

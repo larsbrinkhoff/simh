@@ -790,7 +790,9 @@ t_stat show_addr (FILE *st, UNIT *uptr, int32 val, CONST void *desc);
 t_stat set_vec (UNIT *uptr, int32 val, CONST char *cptr, void *desc);
 t_stat show_vec (FILE *st, UNIT *uptr, int32 val, CONST void *desc);
 t_stat show_vec_mux (FILE *st, UNIT *uptr, int32 val, CONST void *desc);
-t_stat auto_config (const char *name, int32 num);
+
+extern void pdp10_lights_init (void);
+extern void pdp10_lights_main (d10);
 
 extern d10 *ac_cur;                                     /* current AC block */
 extern int32 flags;                                     /* flags */
