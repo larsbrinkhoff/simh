@@ -928,6 +928,7 @@ switch (uptr->FUNC) {                                   /* case on function */
 #define XBA_MBZ         0000003                         /* addr<1:0> must be 0 */
 
     case FNC_WRITE:                                     /* write */
+    case FNC_WRITEH:                                    /* write headers */
         if (uptr->flags & UNIT_WPRT) {                  /* write locked? */
             set_rper (ER1_WLE, drv);                    /* set drive error */
             update_rpcs (CS1_DONE | CS1_TRE, drv);      /* set done, err */
@@ -939,6 +940,7 @@ switch (uptr->FUNC) {                                   /* case on function */
     case FNC_READH:                                     /* read headers */
         ba = GET_UAE (rpcs1) | rpba;                    /* get byte addr */
         wc10 = (0200000 - rpwc) >> 1;                   /* get PDP-10 wc */
+        fprintf (stderr, "Word count %o\n", wc10);
         da = GET_DA (rpdc[drv], rpda[drv], dtype) * RP_NUMWD; /* get disk addr */
         if ((da + wc10) > drv_tab[dtype].size) {        /* disk overrun? */
             set_rper (ER1_AOE, drv);
@@ -947,8 +949,13 @@ switch (uptr->FUNC) {                                   /* case on function */
             }
 
         err = fseek (uptr->fileref, da * sizeof (d10), SEEK_SET);
-        if (uptr->FUNC == FNC_WRITE) {                  /* write? */
+        if (uptr->FUNC == FNC_WRITE || uptr->FUNC == FNC_WRITEH) { /* write? */
             for (twc10 = 0; twc10 < wc10; twc10++) {
+                if (uptr->FUNC == FNC_WRITEH && (twc10 % 130) == 0) {
+                    fprintf (stderr, "Skip header\n");
+                    ba += 8;
+                    twc10 += 2;
+                }
                 pa10 = ba >> 2;
                 vpn = PAG_GETVPN (pa10);                /* map addr */
                 if ((vpn >= UMAP_MEMSIZE) || (ba & XBA_MBZ) || (rpwc & XWC_MBZ) ||
@@ -963,6 +970,9 @@ switch (uptr->FUNC) {                                   /* case on function */
                     ubcs[0] = ubcs[0] | UBCS_TMO;       /* UBA times out */
                     break;
                     }
+                fprintf (stderr, "Write %012llo @ %06o\n",
+                         M[mpa10], mpa10);
+                fflush (stderr);
                 dbuf[twc10] = M[mpa10];                 /* write to disk */
                 if ((rpcs2 & CS2_UAI) == 0)
                     ba = ba + 4;
@@ -1002,6 +1012,8 @@ switch (uptr->FUNC) {                                   /* case on function */
                      rpcs2 = rpcs2 | CS2_WCE;           /* set error */
                      break;
                      }
+                fprintf (stderr, "Read %012llo\n",
+                         M[mpa10]);
                 if ((rpcs2 & CS2_UAI) == 0)
                     ba = ba + 4;
                 }
@@ -1026,9 +1038,6 @@ switch (uptr->FUNC) {                                   /* case on function */
             clearerr (uptr->fileref);
             return SCPE_IOERR;
             }
-        /* fall through */
-
-    case FNC_WRITEH:                                    /* write headers stub */
         update_rpcs (CS1_DONE, drv);                    /* set done */
         break;
         }                                               /* end case func */
