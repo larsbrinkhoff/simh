@@ -1,3 +1,5 @@
+syntax error
+
 /* pdp11_sys.c: PDP-11 simulator interface
 
    Copyright (c) 1993-2018, Robert M Supnik
