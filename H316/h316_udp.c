@@ -336,6 +336,11 @@ t_stat udp_send (DEVICE *dptr, int32 link, uint16 *pdata, uint16 count)
 
   // Send it and we're outta here ...
   iret = tmxr_put_packet_ln (&udp_lines[link], (const uint8 *)&pkt, (size_t)pktlen);
+  if (iret == 111)
+    {
+      fprintf (stderr, "link %d got connection refused\n");
+      return SCPE_OK;
+    }
   if (iret != SCPE_OK) return udp_error(link, "tmxr_put_packet_ln()");
   sim_debug(IMP_DBG_UDP, dptr, "link %d - packet sent (sequence=%d, length=%d)\n", link, ntohl(pkt.sequence), ntohs(pkt.count));
   return SCPE_OK;
