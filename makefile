@@ -104,6 +104,10 @@ BUILD_MULTIPLE_VERB = is
 ifneq (,$(or $(findstring XXpdp1XX,$(addsuffix XX,$(addprefix XX,${MAKECMDGOALS}))),$(findstring pdp11,${MAKECMDGOALS}),$(findstring tx-0,${MAKECMDGOALS}),$(findstring microvax1,${MAKECMDGOALS}),$(findstring microvax2,${MAKECMDGOALS}),$(findstring microvax3900,${MAKECMDGOALS}),$(findstring microvax2000,${MAKECMDGOALS}),$(findstring vaxstation3100,${MAKECMDGOALS}),$(findstring XXvaxXX,$(addsuffix XX,$(addprefix XX,${MAKECMDGOALS})))))
   VIDEO_USEFUL = true
 endif
+# building the Maze needs video support
+ifneq (,$(findstring imlac,${MAKECMDGOALS}))
+  VIDEO_USEFUL = true
+endif
 # building the besm6 needs both video support and fontfile support
 ifneq (,$(findstring besm6,${MAKECMDGOALS}))
   VIDEO_USEFUL = true
@@ -601,6 +605,7 @@ ifeq (${WIN32},)  #*nix Environments (&& cygwin)
           VIDEO_LDFLAGS += `$(SDLX_CONFIG) --libs`
           VIDEO_FEATURES = - video capabilities provided by libSDL2 (Simple Directmedia Layer)
           DISPLAYL = ${DISPLAYD}/display.c $(DISPLAYD)/sim_ws.c
+          DISPLAYMAZE = ${DISPLAYD}/maze.c
           DISPLAYVT = ${DISPLAYD}/vt11.c
           DISPLAY340 = ${DISPLAYD}/type340.c
           DISPLAYNG = ${DISPLAYD}/ng.c
@@ -1511,6 +1516,14 @@ PDP8 = ${PDP8D}/pdp8_cpu.c ${PDP8D}/pdp8_clk.c ${PDP8D}/pdp8_df.c \
 PDP8_OPT = -I ${PDP8D}
 
 
+MAZED = ${SIMHD}/maze
+MAZE = ${MAZED}/maze_sys.c ${MAZED}/maze_cpu.c \
+	${MAZED}/maze_dp.c ${MAZED}/maze_crt.c ${MAZED}/maze_kbd.c \
+	${MAZED}/maze_tty.c ${MAZED}/maze_pt.c \
+	${DISPLAYL} ${DISPLAYMAZE}
+MAZE_OPT = -I ${MAZED} ${DISPLAY_OPT}
+
+
 H316D = ${SIMHD}/H316
 H316 = ${H316D}/h316_stddev.c ${H316D}/h316_lp.c ${H316D}/h316_cpu.c \
 	${H316D}/h316_sys.c ${H316D}/h316_mt.c ${H316D}/h316_fhd.c \
@@ -2198,6 +2211,15 @@ ${BIN}uc15${EXE} : ${UC15} ${SIM}
 	${CC} ${UC15} ${SIM} ${UC15_OPT} ${CC_OUTSPEC} ${LDFLAGS}
 ifneq (,$(call find_test,${PDP11D},uc15))
 	$@ $(call find_test,${PDP11D},uc15) ${TEST_ARG}
+endif
+
+maze : ${BIN}maze${EXE}
+
+${BIN}maze${EXE} : ${MAZE} ${SIM}
+	${MKDIRBIN}
+	${CC} ${MAZE} ${SIM} ${MAZE_OPT} ${CC_OUTSPEC} ${LDFLAGS}
+ifneq (,$(call find_test,${MAZE},maze))
+	$@ $(call find_test,${MAZED},maze) ${TEST_ARG}
 endif
 
 microvax3900 : vax
