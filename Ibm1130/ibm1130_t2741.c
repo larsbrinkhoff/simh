@@ -5,7 +5,6 @@
 
 #include "ibm1130_defs.h"
 #include "sim_sock.h"
-#include "sim_tmxr.h"
 
 #define DEBUG_T2741
 
